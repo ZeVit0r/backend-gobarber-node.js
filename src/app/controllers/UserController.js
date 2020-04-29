@@ -23,7 +23,7 @@ class UserController {
     async update(req, res) {
         const { email, oldPassword } = req.body;
 
-        const user = await User.findOne(req.userId);
+        const user = await User.findOne({ where: req.userId });
 
         if (email !== user.email) {
             const userExists = await User.findOne({
