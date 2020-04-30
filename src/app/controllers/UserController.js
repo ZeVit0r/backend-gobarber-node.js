@@ -1,7 +1,18 @@
 import User from "../models/User";
+import * as Yup from "yup";
 
 class UserController {
     async store(req, res) {
+        const schema = Yup.object().shape({
+            name: Yup.string().required(),
+            email: Yup.string().email().required(),
+            password: Yup.string().required().min(6),
+        });
+
+        if (!(await schema.isValid(req.body))) {
+            return res.status(400).json({ error: "validation fails" });
+        }
+
         const userExists = await User.findOne({
             where: { email: req.body.email },
         });
@@ -21,11 +32,29 @@ class UserController {
     }
 
     async update(req, res) {
+        const schema = Yup.object().shape({
+            name: Yup.string(),
+            email: Yup.string().email(),
+            oldPassword: Yup.string().min(6),
+            password: Yup.string()
+                .min(6)
+                .when("oldPassword", (oldPassword, field) =>
+                    oldPassword ? field.required() : field
+                ),
+            confirmPassword: Yup.string().when("password", (password, field) =>
+                password ? field.required().oneOf([Yup.ref("password")]) : field
+            ),
+        });
+
+        if (!(await schema.isValid(req.body))) {
+            return res.status(400).json({ error: "validation fails" });
+        }
+
         const { email, oldPassword } = req.body;
 
         const user = await User.findOne({ where: req.userId });
 
-        if (email !== user.email) {
+        if (email !== user.email && email !== undefined) {
             const userExists = await User.findOne({
                 where: { email },
             });
@@ -39,12 +68,8 @@ class UserController {
             return res.status(401).json({ error: "Password does not match" });
         }
 
-        if (oldPassword === undefined && req.body.password) {
-            return res.status(401).json({ error: "inform old password" });
-        }
-
-        if (oldPassword && req.body.password === undefined) {
-            return res.status(401).json({ error: "inform the password" });
+        if (req.body.password && !oldPassword) {
+            return res.status(401).json({ error: "type the old password" });
         }
 
         const { id, name, provide } = await user.update(req.body);
